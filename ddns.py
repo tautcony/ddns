@@ -4,10 +4,14 @@ import requests
 from lxml import objectify
 
 # https://www.namesilo.com/account_api.php
-KEY = "YOUR_API_KEY"
+NAMESILO_KEY = "YOUR_NAMESILO_API_KEY"
 HOST = "HOSTNAME"
 DOMAIN = "YOUR.DOMAIN"
 TTL = 3600
+
+# https://ifttt.com/maker_webhooks
+IFTTT_EVENT = "ddns_failed"
+IFTTT_KEY = "YOUR_IFTTT_WEBHOOKS_API_KEY"
 
 FULL_HOST = "{0}.{1}".format(HOST, DOMAIN) if HOST != "" else DOMAIN
 BASE_URL = "https://www.namesilo.com/api/"
@@ -18,7 +22,7 @@ dnsListRecords = {
     "params": {
         "version": "1",
         "type": "xml",
-        "key": KEY,
+        "key": NAMESILO_KEY,
         "domain": DOMAIN
     }
 }
@@ -28,7 +32,7 @@ dnsUpdateRecord = {
     "params": {
         "version": "1",
         "type": "xml",
-        "key": KEY,
+        "key": NAMESILO_KEY,
         "domain": DOMAIN,
         "rrhost": HOST,
         "rrttl": TTL,
@@ -42,7 +46,7 @@ dnsAddRecord = {
     "params": {
         "version": "1",
         "type": "xml",
-        "key": KEY,
+        "key": NAMESILO_KEY,
         "domain": DOMAIN,
         "rrtype": "A",
         "rrhost": HOST,
@@ -70,10 +74,28 @@ class FailedPostException(Exception):
         return self.reply.detail
 
 
+def webhooks():
+    if not IFTTT_KEY:
+        return
+    try:
+        r = requests.post("https://maker.ifttt.com/trigger/{0}/with/key/{1}".format(IFTTT_EVENT, IFTTT_KEY),
+            json={"value1": "<br>".join(log_message)})
+        if r.status_code != 200:
+            raise ValueError("Failed to connect to IFTTT with status code: {0}".format(r.status_code))
+    except Exception as err:
+        log(err)
+
+
 def log(text):
     log_text = "{0} - {1}".format(time.strftime("%Y/%m/%d %H:%M:%S"), text)
     print(log_text)
     log_message.append(log_text)
+
+
+def failed(text):
+    log(text)
+    webhooks()
+    exit(1)
 
 
 def parse_xml(xml_text):
@@ -148,13 +170,11 @@ def main():
     try:
         query_and_update()
     except FailedPostException as request_failed:
-        log("Failed to do a request with message: '{0}'".format(request_failed.detail))
-        exit(1)
+        failed("Failed to do a request with message: '{0}'".format(request_failed.detail))
     except ValueError as get_ip_failed:
-        log("Failed to get current IP with response: '{0}'".format(get_ip_failed))
-        exit(1)
-    except Exception as ex:
-        log("Failed with an unknown exception: '{0}'".format(ex))
+        failed("Failed to get current IP with response: '{0}'".format(get_ip_failed))
+    except Exception as err:
+        failed("Failed with an unknown exception: '{0}'".format(err))
     finally:
         with open("./ddns.log", "a+") as log_file:
             log_file.write("\n".join(log_message) + "\n")
