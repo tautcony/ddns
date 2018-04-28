@@ -7,6 +7,7 @@ from lxml import objectify
 KEY = "YOUR_API_KEY"
 HOST = "HOSTNAME"
 DOMAIN = "YOUR.DOMAIN"
+TTL = 3600
 
 FULL_HOST = "{0}.{1}".format(HOST, DOMAIN) if HOST != "" else DOMAIN
 BASE_URL = "https://www.namesilo.com/api/"
@@ -30,6 +31,7 @@ dnsUpdateRecord = {
         "key": KEY,
         "domain": DOMAIN,
         "rrhost": HOST,
+        "rrttl": TTL,
         "rrid": None,
         "rrvalue": None
     }
@@ -44,6 +46,7 @@ dnsAddRecord = {
         "domain": DOMAIN,
         "rrtype": "A",
         "rrhost": HOST,
+        "rrttl": TTL,
         "rrvalue": None
     }
 }
