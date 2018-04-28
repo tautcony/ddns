@@ -90,14 +90,24 @@ def do_request(operation):
 
 
 def get_current_ip():
-    try:
-        r = requests.get("https://myip.ipip.net")
-        ret = re.search(r'\d+\.\d+\.\d+\.\d+', r.text)
-        if ret is None or not all([0 <= int(i) <= 255 for i in ret.group(0).split(".")]):
-            raise ValueError(r.text.strip())
-        return ret.group(0)
-    except requests.exceptions.ConnectionError as err:
-        raise ValueError(err)
+    error = None
+    server_list = [
+        "https://myip.ipip.net",
+        "https://api.ipify.org",
+        "https://checkip.amazonaws.com",
+        "http://checkip.dyndns.com"
+    ]
+    for server in server_list:
+        try:
+            text = requests.get(server).text.strip()
+            ret = re.search(r'\d+\.\d+\.\d+\.\d+', text)
+            if ret is None or not all([0 <= int(i) <= 255 for i in ret.group(0).split(".")]):
+                raise ValueError(text)
+            return ret.group(0)
+        except (requests.exceptions.ConnectionError, ValueError) as err:
+            error = err
+    if error:
+        raise ValueError(error)
 
 
 def query_and_update():
