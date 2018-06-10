@@ -1,3 +1,4 @@
+from os import path
 import re
 import time
 import requests
@@ -176,7 +177,7 @@ def main():
     except Exception as err:
         failed("Failed with an unknown exception: '{0}'".format(err))
     finally:
-        with open("./ddns.log", "a+") as log_file:
+        with open(path.join(path.dirname(path.abspath(__file__)), "ddns.log"), "a+") as log_file:
             log_file.write("\n".join(log_message) + "\n")
 
 
