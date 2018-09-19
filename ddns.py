@@ -1,8 +1,14 @@
 from os import path
-import re
-import time
-import requests
-from lxml import objectify
+from sys import exc_info
+from traceback import format_exception
+from re import search as re_search
+from time import strftime
+from requests import post, get
+from requests.exceptions import ConnectionError
+try:
+    import xml.etree.cElementTree as ET
+except ImportError:
+    import xml.etree.ElementTree as ET
 
 # https://www.namesilo.com/account_api.php
 NAMESILO_KEY = "YOUR_NAMESILO_API_KEY"
@@ -57,6 +63,24 @@ dnsAddRecord = {
 }
 
 
+def objectify(root):
+    class Node(dict):
+        __getattr__, __setattr__ = dict.get, dict.__setitem__
+    ret = Node()
+    for child in root:
+        if len(child) == 0:
+            ret[child.tag] = child.text.strip()
+        else:
+            if child.tag in ret:
+                if type(ret[child.tag]) != list:
+                    tmp = ret[child.tag]
+                    ret[child.tag] = [tmp]
+                ret[child.tag].append(objectify(child))
+            else:
+                ret[child.tag] = objectify(child)
+    return ret
+
+
 class FailedPostException(Exception):
     def __init__(self, rsp):
         super(FailedPostException, self).__init__()
@@ -79,35 +103,39 @@ def webhooks():
     if not IFTTT_KEY:
         return
     try:
-        r = requests.post("https://maker.ifttt.com/trigger/{0}/with/key/{1}".format(IFTTT_EVENT, IFTTT_KEY),
-            json={"value1": "<br>".join(log_message)})
+        r = post(
+            "https://maker.ifttt.com/trigger/{0}/with/key/{1}".format(IFTTT_EVENT, IFTTT_KEY),
+            json={"value1": "<br>".join(log_message)}
+        )
         if r.status_code != 200:
             raise ValueError("Failed to connect to IFTTT with status code: {0}".format(r.status_code))
     except Exception as err:
         log(err)
 
 
-def log(text):
-    log_text = "{0} - {1}".format(time.strftime("%Y/%m/%d %H:%M:%S"), text)
+def log(text, with_time=True):
+    log_text = text.strip()
+    if with_time:
+        log_text = "{0} - {1}".format(strftime("%Y/%m/%d %H:%M:%S"), log_text)
     print(log_text)
     log_message.append(log_text)
 
 
-def failed(text):
-    log(text)
+def failed(message):
+    if type(message) == list:
+        log("Long message")
+        for line in message:
+            log(line, with_time=False)
+    else:
+        log(message)
     webhooks()
-    exit(1)
-
-
-def parse_xml(xml_text):
-    obj = objectify.fromstring(xml_text)
-    return obj
+    exit(0)
 
 
 def do_request(operation):
-    r = requests.get(BASE_URL + operation["name"], params=operation["params"])
-    obj = parse_xml(r.text)
-    if obj.reply.code != 300:
+    r = get(BASE_URL + operation["name"], params=operation["params"])
+    obj = objectify(ET.fromstring(r.text))
+    if obj.reply.code != "300":
         raise FailedPostException(obj)
     return obj
 
@@ -122,12 +150,12 @@ def get_current_ip():
     ]
     for server in server_list:
         try:
-            text = requests.get(server).text.strip()
-            ret = re.search(r'\d+\.\d+\.\d+\.\d+', text)
+            text = get(server).text.strip()
+            ret = re_search(r'\d+\.\d+\.\d+\.\d+', text)
             if ret is None or not all([0 <= int(i) <= 255 for i in ret.group(0).split(".")]):
                 raise ValueError(text)
             return ret.group(0)
-        except (requests.exceptions.ConnectionError, ValueError) as err:
+        except (ConnectionError, ValueError) as err:
             error = err
     if error:
         raise ValueError(error)
@@ -139,7 +167,7 @@ def query_and_update():
     obj = do_request(dnsListRecords)
     a_record = None
     for rec in obj["reply"].resource_record:
-        host = str(rec.host)
+        host = rec.host
         if rec.type == "A" and FULL_HOST == host:
             a_record = rec
             break
@@ -174,8 +202,9 @@ def main():
         failed("Failed to do a request with message: '{0}'".format(request_failed.detail))
     except ValueError as get_ip_failed:
         failed("Failed to get current IP with response: '{0}'".format(get_ip_failed))
-    except Exception as err:
-        failed("Failed with an unknown exception: '{0}'".format(err))
+    except Exception:
+        etype, value, tb = exc_info()
+        failed(format_exception(etype, value, tb))
     finally:
         with open(path.join(path.dirname(path.abspath(__file__)), "ddns.log"), "a+") as log_file:
             log_file.write("\n".join(log_message) + "\n")
