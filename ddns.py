@@ -3,12 +3,16 @@ from sys import exc_info
 from traceback import format_exception
 from re import search as re_search
 from time import strftime
-from requests import post, get
-from requests.exceptions import ConnectionError
 try:
     import xml.etree.cElementTree as ET
 except ImportError:
     import xml.etree.ElementTree as ET
+try:
+    from requests import post, get
+    from requests.exceptions import ConnectionError
+except ModuleNotFoundError:
+    print("Required module not installed")
+    exit(1)
 
 # https://www.namesilo.com/account_api.php
 NAMESILO_KEY = "YOUR_NAMESILO_API_KEY"
@@ -129,7 +133,7 @@ def failed(message):
     else:
         log(message)
     webhooks()
-    exit(0)
+    exit(1)
 
 
 def do_request(operation):
