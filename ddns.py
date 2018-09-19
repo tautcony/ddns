@@ -21,7 +21,7 @@ DOMAIN = "YOUR.DOMAIN"
 TTL = 3600
 
 # https://ifttt.com/maker_webhooks
-IFTTT_EVENT = "ddns_failed"
+IFTTT_EVENT = "YOUR_IFTTT_EVENT_NAME"
 IFTTT_KEY = "YOUR_IFTTT_WEBHOOKS_API_KEY"
 
 FULL_HOST = "{0}.{1}".format(HOST, DOMAIN) if HOST != "" else DOMAIN
